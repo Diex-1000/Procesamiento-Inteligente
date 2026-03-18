@@ -1,0 +1,180 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconocimiento de Números – MNIST</title>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #1e1e2e;
+            color: #cdd6f4;
+            padding: 30px;
+        }
+        h1 { color: #cba6f7; margin-bottom: 5px; }
+        p  { color: #a6adc8; margin: 5px 0 20px 0; }
+        canvas {
+            border: 3px solid #cba6f7;
+            border-radius: 8px;
+            cursor: crosshair;
+            background: #000;
+        }
+        .botones {
+            margin-top: 15px;
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #btnLimpiar  { background: #f38ba8; color: #1e1e2e; }
+        #btnPredecir { background: #a6e3a1; color: #1e1e2e; }
+        #resultado-contenedor {
+            margin-top: 25px;
+            text-align: center;
+        }
+        #resultado {
+            font-size: 80px;
+            font-weight: bold;
+            color: #a6e3a1;
+            min-height: 100px;
+        }
+        #estado {
+            font-size: 14px;
+            color: #f9e2af;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1> Reconocimiento de Números</h1>
+    <p>Dibuja un número del 0 al 9 en el recuadro y presiona <strong>Predecir</strong></p>
+
+    <canvas id="canvas" width="280" height="280"></canvas>
+
+    <div class="botones">
+        <button id="btnLimpiar"> Limpiar</button>
+        <button id="btnPredecir"> Predecir</button>
+    </div>
+
+    <div id="resultado-contenedor">
+        <div id="resultado">–</div>
+        <div id="estado">Dibuja un número y presiona Predecir</div>
+    </div>
+
+    <script>
+        const canvas  = document.getElementById('canvas');
+        const ctx     = canvas.getContext('2d');
+        let dibujando = false;
+
+        // Configuración del pincel
+        ctx.lineWidth   = 18;
+        ctx.lineCap     = 'round';
+        ctx.strokeStyle = '#ffffff';
+        ctx.fillStyle   = '#000000';
+        ctx.fillRect(0, 0, 280, 280);
+
+        // ── Eventos del mouse ──────────────────────────────────────
+        canvas.addEventListener('mousedown', (e) => {
+            dibujando = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!dibujando) return;
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        });
+
+        canvas.addEventListener('mouseup',    () => { dibujando = false; });
+        canvas.addEventListener('mouseleave', () => { dibujando = false; });
+
+        // ── Eventos táctiles (móvil) ────────────────────────────────
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            dibujando = true;
+            const t = e.touches[0];
+            const r = canvas.getBoundingClientRect();
+            ctx.beginPath();
+            ctx.moveTo(t.clientX - r.left, t.clientY - r.top);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!dibujando) return;
+            const t = e.touches[0];
+            const r = canvas.getBoundingClientRect();
+            ctx.lineTo(t.clientX - r.left, t.clientY - r.top);
+            ctx.stroke();
+        });
+
+        canvas.addEventListener('touchend', () => { dibujando = false; });
+
+        // ── Limpiar canvas ─────────────────────────────────────────
+        document.getElementById('btnLimpiar').addEventListener('click', () => {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 280, 280);
+            document.getElementById('resultado').textContent = '–';
+            document.getElementById('estado').textContent    = 'Dibuja un número y presiona Predecir';
+        });
+
+        // ── Función que extrae los píxeles y envía la predicción ───
+        function predecir() {
+            // Crear canvas temporal de 28x28 para escalar la imagen
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width  = 28;
+            tmpCanvas.height = 28;
+            const tmpCtx = tmpCanvas.getContext('2d');
+            tmpCtx.drawImage(canvas, 0, 0, 28, 28);
+
+            // Extraer píxeles del canvas escalado (28x28 = 784 píxeles)
+            var pixels = [];
+            for (var x = 0; x < 28; x++) {
+                for (var y = 0; y < 28; y++) {
+                    var imgData = tmpCtx.getImageData(y, x, 1, 1);
+                    var data    = imgData.data;
+                    // Canal Alpha dividido entre 255 para normalizar (0=blanco, 1=negro)
+                    var color = (data[3]) / 255;
+                    color = (Math.round(color * 100) / 100).toFixed(2);
+                    pixels.push(color);
+                }
+            }
+
+            document.getElementById('estado').textContent = ' Enviando al servidor...';
+
+            // Enviar píxeles al servidor Python por HTTP POST
+            // IMPORTANTE: Cambia la URL si usas ngrok en Google Colab
+            // Ejemplo ngrok: "https://xxxx.ngrok.io"
+            $.post("http://localhost:8000", { pixeles: pixels.join(",") },
+                function(response) {
+                    var nombres = [
+                        'Cero','Uno','Dos','Tres','Cuatro',
+                        'Cinco','Seis','Siete','Ocho','Nueve'
+                    ];
+                    var num = parseInt(response);
+                    document.getElementById('resultado').textContent = num;
+                    document.getElementById('estado').textContent    =
+                        ' El modelo predice: ' + nombres[num];
+                }
+            ).fail(function() {
+                document.getElementById('estado').textContent =
+                    ' Error: No se pudo conectar al servidor Python (puerto 8000)';
+            });
+        }
+
+        document.getElementById('btnPredecir').addEventListener('click', predecir);
+    </script>
+</body>
+</html>

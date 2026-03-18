@@ -1,0 +1,81 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reconocimiento de Numeros</title>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous"></script>
+</head>
+<body>
+    <h2>Dibuja un numero del 0 al 9</h2>
+    <canvas id="canvas" width="280" height="280" 
+            style="border:2px solid black; cursor:crosshair; background:black;">
+    </canvas>
+    <br><br>
+    <button onclick="limpiar()">Limpiar</button>
+    <button onclick="predecir()">Predecir</button>
+    <h1 id="resultado">-</h1>
+
+    <script>
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        var dibujando = false;
+
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 35;
+        ctx.lineCap = 'round';
+
+        canvas.onmousedown = function(e) {
+            dibujando = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        }
+
+        canvas.onmousemove = function(e) {
+            if (!dibujando) return;
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        }
+
+        canvas.onmouseup   = function() { dibujando = false; }
+        canvas.onmouseleave = function() { dibujando = false; }
+
+        function limpiar() {
+            ctx.clearRect(0, 0, 280, 280);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 280, 280);
+            document.getElementById('resultado').innerHTML = '-';
+        }
+
+        function predecir() {
+            // Escalar canvas a 28x28
+            var tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = 28;
+            tmpCanvas.height = 28;
+            var tmpCtx = tmpCanvas.getContext('2d');
+            tmpCtx.imageSmoothingEnabled = true;
+            tmpCtx.imageSmoothingQuality = 'high';
+            tmpCtx.drawImage(canvas, 0, 0, 28, 28);
+
+            // Obtener pixeles igual que en el PDF
+            var pixels = [];
+            var imageData = tmpCtx.getImageData(0, 0, 28, 28);
+            var data = imageData.data;
+            for (var i = 0; i < 28 * 28; i++) {
+                var color = data[i * 4] / 255;
+                color = (Math.round(color * 100) / 100).toFixed(2);
+                pixels.push(color);
+            }
+
+            // Enviar al servidor Python
+            $.post("http://localhost:8000", {pixeles: pixels.join(",")},
+                function(response) {
+                    document.getElementById('resultado').innerHTML = 
+                        "Prediccion: " + response;
+                }
+            );
+        }
+    </script>
+</body>
+</html>
